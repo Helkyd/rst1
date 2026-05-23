@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/Table'
 import { formatDate } from '@/lib/utils'
 
+export const dynamic = 'force-dynamic' // Don't prerender
+
 export default async function DriversPage() {
   const drivers = await prisma.user.findMany({
     where: { role: 'DRIVER' },

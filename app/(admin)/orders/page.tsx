@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import OrdersTable from '@/components/orders/OrdersTable'
 
+export const dynamic = 'force-dynamic' // Don't prerender
+
 export default async function OrdersPage({
   searchParams,
 }: {
