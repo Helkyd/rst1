@@ -32,7 +32,7 @@ export default async function RestaurantsPage() {
         </div>
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {restaurants.map((r) => (
+        {restaurants.map((r: any) => (
           <RestaurantCard
             key={r.id}
             id={r.id}
