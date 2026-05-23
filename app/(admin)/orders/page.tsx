@@ -1,13 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import OrdersTable from '@/components/orders/OrdersTable'
-
-import type { Prisma } from '@prisma/client'
-//import type { Prisma } from '@prisma/client/scripts/default-index'
-
-//import type { Prisma } from '@prisma/client/scripts/default-index'
-
-// Or use this for Prisma 7
-import type { PrismaClient, Order } from '@prisma/client'
+import type { Prisma } from '@prisma/client/extension' // Correct import for Prisma 7
 
 export default async function OrdersPage({
   searchParams,
