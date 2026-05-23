@@ -1,8 +1,5 @@
-//import { PrismaClient } from '@prisma/client'
-// Alternative import
-import * as Prisma from '@prisma/client'
-const { PrismaClient } = Prisma
-
+// lib/prisma.ts
+import { PrismaClient } from '@prisma/client/extension' // Note the /extension
 import { PrismaPg } from '@prisma/adapter-pg'
 
 const globalForPrisma = globalThis as unknown as {
@@ -26,5 +23,5 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Add error handling for missing DATABASE_URL
 if (!process.env.DATABASE_URL) {
-  console.warn('DATABASE_URL is not defined. Database features will not work.');
+  console.warn('DATABASE_URL is not defined. Database features will not work.')
 }
