@@ -1,6 +1,13 @@
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
-import { TaxPercentage } from '@prisma/client'
+
+// Define TaxPercentage enum manually - match your Prisma schema
+enum TaxPercentage {
+  VAT_14 = 'VAT_14',
+  VAT_18 = 'VAT_18',
+  VAT_23 = 'VAT_23',
+  // Add other tax rates from your schema
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
