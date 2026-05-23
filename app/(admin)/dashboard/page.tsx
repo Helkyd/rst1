@@ -4,6 +4,8 @@ import RevenueChart from '@/components/dashboard/RevenueChart'
 import RecentOrders from '@/components/dashboard/RecentOrders'
 import { ShoppingBag, Users, UtensilsCrossed, TrendingUp } from 'lucide-react'
 
+export const dynamic = 'force-dynamic' // Don't prerender
+
 export default async function DashboardPage() {
   const [totalOrders, totalUsers, totalRestaurants, revenue, recentOrders] =
     await Promise.all([
