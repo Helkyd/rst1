@@ -18,6 +18,14 @@ const nextConfig: NextConfig = {
   
   // Turbopack config (empty is fine)
   turbopack: {},
+
+  // Important for Prisma
+  serverExternalPackages: ['@prisma/client', '@prisma/adapter-pg', 'prisma'],
+  
+  // Ensure all necessary files are included
+  outputFileTracingIncludes: {
+    '/*': ['./prisma/**/*'],
+  },  
   
   // Remove custom headers for now to avoid warnings
   // Add them back gradually once the build works
