@@ -40,7 +40,7 @@ export default async function DriversPage() {
           </TableRow>
         </TableHead>
         <TableBody>
-          {drivers.map((driver) => (
+          {drivers.map((driver: any) => (
             <TableRow key={driver.id}>
               <TableCell className="font-medium text-white">
                 {driver.name}
