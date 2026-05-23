@@ -1,27 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
-import { OrderStatus } from '@prisma/client'
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const order = await prisma.order.findUnique({
-    where: { id },
-    include: {
-      user: true,
-      driver: true,
-      items: { include: { product: true, restaurant: true } },
-    },
-  })
-
-  if (!order) {
-    return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 })
-  }
-
-  return NextResponse.json(order)
-}
+// Comment out the problematic import
+// import { OrderStatus } from '@prisma/client'
 
 export async function PATCH(
   request: Request,
@@ -31,8 +12,9 @@ export async function PATCH(
 
   try {
     const { status } = await request.json()
+    const validStatuses = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERING', 'DELIVERED', 'CANCELLED']
 
-    if (!status || !Object.values(OrderStatus).includes(status)) {
+    if (!status || !validStatuses.includes(status)) {
       return NextResponse.json({ error: 'Status inválido' }, { status: 400 })
     }
 
