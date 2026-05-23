@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import RestaurantCard from '@/components/restaurants/RestaurantCard'
 import NewRestaurantButton from '@/components/restaurants/NewRestaurantButton'
 
+export const dynamic = 'force-dynamic' // Don't prerender
+
 export default async function RestaurantsPage() {
   const restaurants = await prisma.restaurant.findMany({
     include: {

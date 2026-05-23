@@ -10,6 +10,8 @@ import {
 import { formatCurrency } from '@/lib/utils'
 import NewProductButton from '@/components/products/NewProductButton'
 
+export const dynamic = 'force-dynamic' // Don't prerender
+
 export default async function ProductsPage() {
   const [products, restaurants] = await Promise.all([
     prisma.product.findMany({

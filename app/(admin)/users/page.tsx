@@ -9,6 +9,8 @@ import {
 } from '@/components/ui/Table'
 import { formatDate } from '@/lib/utils'
 
+export const dynamic = 'force-dynamic' // Don't prerender
+
 export default async function UsersPage() {
   const users = await prisma.user.findMany({
     where: { role: 'CLIENT' },
