@@ -19,3 +19,8 @@ export const prisma = globalForPrisma.prisma ?? createPrismaClient()
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma
 }
+
+// Add error handling for missing DATABASE_URL
+if (!process.env.DATABASE_URL) {
+  console.warn('DATABASE_URL is not defined. Database features will not work.');
+}
