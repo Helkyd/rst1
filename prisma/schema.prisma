@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  //url      = env("DATABASE_URL")
 }
 
 model User {
@@ -12,98 +13,147 @@ model User {
   email     String   @unique
   password  String
   address   String?
-  telephone String   @unique
-  taxId     String?  @unique
+  telephone String  @unique
+  taxId     String? @unique
   role      Role
+
   latitude  Float?
   longitude Float?
+
   createdAt DateTime @default(now())
-  orders       Order[]
+
+  orders Order[]
+
   driverOrders Order[] @relation("DriverOrders")
 }
 
 model Restaurant {
-  id           String   @id @default(uuid())
-  name         String
-  address      String
-  taxId        String?
-  telephone    String?
-  email        String?
-  orderEmail   String?
-  website      String?
-  logo         String?
-  latitude     Float?
-  longitude    Float?
-  createdAt    DateTime @default(now())
-  regimeIva    String?
-  products         Product[]
-  orderItems       OrderItem[]
-  paymentMethods   RestaurantPaymentMethod[]
-  workingHours     RestaurantWorkingHour[]
+  id        String   @id @default(uuid())
+  name      String
+  address   String
+
+  taxId String?
+
+  telephone String?
+
+  email     String?
+
+  orderEmail String?
+
+  website   String?
+
+  logo      String?
+
+  latitude  Float?
+  longitude Float?
+
+  createdAt DateTime @default(now())
+
+  products Product[]
+  orderItems OrderItem[]
+
+
+  paymentMethods RestaurantPaymentMethod[]
+  workingHours   RestaurantWorkingHour[]
+
+  regimeIva String?
 }
 
 model RestaurantPaymentMethod {
-  id           String      @id @default(uuid())
+  id String @id @default(uuid())
+
   restaurantId String
-  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id])
-  method       PaymentMethod
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  method PaymentMethod
 }
 
 model RestaurantWorkingHour {
-  id           String     @id @default(uuid())
+  id String @id @default(uuid())
+
   restaurantId String
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
-  dayOfWeek    WeekDay    @default(MONDAY)
-  startTime    String
-  endTime      String
-  isOpen       Boolean    @default(true)
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  dayOfWeek WeekDay @default(MONDAY)
+
+  startTime String
+  endTime String
+
+  isOpen Boolean @default(true)
 }
 
 model Product {
-  id           String        @id @default(uuid())
-  name         String
-  price        Float
+  id    String @id @default(uuid())
+  name  String
+  price Float
+
   taxPercentage TaxPercentage @default(VAT_14)
-  image1       String?
-  image2       String?
-  image3       String?
-  image4       String?
+
+  image1 String?
+  image2 String?
+  image3 String?
+  image4 String?
+
   restaurantId String
-  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id])
-  orderItems   OrderItem[]
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  orderItems OrderItem[]
 }
 
 model Order {
-  id                 String      @id @default(uuid())
-  orderCounter       Int         @unique @default(autoincrement())
-  total              Float
-  totalIVA           Float       @default(0)
-  platformTax        Float       @default(0)
-  deliveryTax        Float       @default(0)
-  deliveryFee        Float       @default(0)
-  userId             String
-  user               User        @relation(fields: [userId], references: [id])
-  status             OrderStatus @default(PENDING)
-  createdAt          DateTime    @default(now())
-  driverId           String?
-  driver             User?       @relation("DriverOrders", fields: [driverId], references: [id])
-  driverLatitude     Float?
-  driverLongitude    Float?
+  id    String @id @default(uuid())
+
+  orderCounter Int @unique @default(autoincrement())
+
+  total Float
+
+  totalIVA Float @default(0)
+
+  platformTax Float @default(0)
+
+  deliveryTax Float @default(0) //TO BE REMOVED replaced by deliveryFee
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  status OrderStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+
+  deliveryFee Float @default(0)
+
+  driverId    String?
+  driver      User?  @relation("DriverOrders",fields: [driverId],references: [id])
+
+  driverLatitude  Float?
+  driverLongitude Float?
+
   lastLocationUpdate DateTime?
-  items              OrderItem[]
+
+
+  items OrderItem[]
+
 }
 
 model OrderItem {
-  id            String        @id @default(uuid())
-  quantity      Int           @default(1)
-  price         Float
+  id String @id @default(uuid())
+
+  quantity Int @default(1)
+
+  price Float
+
   taxPercentage TaxPercentage @default(VAT_14)
-  orderId       String
-  order         Order         @relation(fields: [orderId], references: [id])
-  productId     String
-  product       Product       @relation(fields: [productId], references: [id])
-  restaurantId  String
-  restaurant    Restaurant    @relation(fields: [restaurantId], references: [id])
+
+  orderId String
+  order   Order @relation(fields: [orderId], references: [id])
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
 }
 
 enum Role {
@@ -114,19 +164,28 @@ enum Role {
 }
 
 enum OrderStatus {
+
   PENDING
+
   ACCEPTED
+
   ACCEPTED_DRIVER
+
   PREPARING
+
   READY_FOR_PICKUP
+
   PICKED_UP
+
   IN_TRANSIT
+
   DELIVERED
+
   CANCELLED
 }
 
 enum PaymentMethod {
-  CASH
+  CASH_ON_DELIVERY
   CARD_ON_DELIVERY
   UNITEL_MONEY
   AFRICELL_CASH
