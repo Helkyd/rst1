@@ -1,5 +1,3 @@
-'use client';
-
 import { prisma } from '@/lib/prisma'
 import StatsCard from '@/components/dashboard/StatsCard'
 import RevenueChart from '@/components/dashboard/RevenueChart'
