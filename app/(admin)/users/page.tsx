@@ -36,7 +36,7 @@ export default async function UsersPage() {
           </TableRow>
         </TableHead>
         <TableBody>
-          {users.map((user) => (
+          {users.map((user: any) => (
             <TableRow key={user.id}>
               <TableCell className="font-medium text-white">
                 {user.name}
