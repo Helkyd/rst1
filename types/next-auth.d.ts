@@ -18,13 +18,22 @@ declare module 'next-auth' {
       accessToken: string;
     } & DefaultSession["user"];
   }
-
+  /*
   interface User {
     role: Role
     restaurantId: string | null
     restaurantName: string | null
     accessToken: string;
   }
+    */
+
+  interface User {
+    id: string;
+    role: string;
+    accessToken: string;
+    restaurantId?: string | null;
+    restaurantName?: string | null;
+  }  
 }
 
 declare module 'next-auth/jwt' {
