@@ -87,7 +87,7 @@ export default async function RestaurantOrderDetailPage({
               {formatCurrency(
                 order.items
                   .filter((item: any) => item.restaurantId === restaurantId)
-                  .reduce((s, i) => s + i.price * i.quantity, 0)
+                  .reduce((s: any, i: any) => s + i.price * i.quantity, 0)
               )}
             </p>
           </Card>
@@ -97,7 +97,7 @@ export default async function RestaurantOrderDetailPage({
           <ul className="divide-y divide-surface-border">
             {order.items
               .filter((item: any) => item.restaurantId === restaurantId)
-              .map((item) => (
+              .map((item: any) => (
                 <li
                   key={item.id}
                   className="flex items-center justify-between py-3 first:pt-0 last:pb-0"

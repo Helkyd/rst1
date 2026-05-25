@@ -54,7 +54,7 @@ export default async function RestaurantDriversPage() {
   )
 
   const busyDrivers = driversWithOrderCounts.filter((d) =>
-    d.driverOrders.some((o) => 
+    d.driverOrders.some((o: any) => 
       ['ACCEPTED_DRIVER', 'PREPARING', 'READY_FOR_PICKUP', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status)
     )
   ).length
@@ -111,7 +111,7 @@ export default async function RestaurantDriversPage() {
           </TableHead>
           <TableBody>
             {driversWithOrderCounts.map((driver) => {
-              const isBusy = driver.driverOrders.some((o) =>
+              const isBusy = driver.driverOrders.some((o: any) =>
                 ['ACCEPTED_DRIVER', 'PREPARING', 'READY_FOR_PICKUP', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status)
               )
               return (
