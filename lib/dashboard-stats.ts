@@ -60,6 +60,14 @@ export async function getDashboardMetrics(requiresAuth: boolean = true) {
       totalRestaurants: number
       recentOrders: any[]
       ordersByStatus: any[]
+      usersToday: number  // ✅ ADD THIS
+      ordersThisMonth: number  // ✅ ADD THIS
+      ordersLastMonth: number  // ✅ ADD THIS
+      revenueThisMonth: number  // ✅ ADD THIS
+      revenueLastMonth: number  // ✅ ADD THIS
+      monthlyRevenue: any[]  // ✅ ADD THIS
+      orderChange: string  // ✅ ADD THIS
+      revenueChange: string  // ✅ ADD THIS
     }>('/api/admin/dashboard', {}, requiresAuth)
 
     // Fetch orders for comparison
@@ -76,6 +84,7 @@ export async function getDashboardMetrics(requiresAuth: boolean = true) {
       ordersThisMonth: thisMonthOrders.count,
       ordersLastMonth: lastMonthOrders.count,
       totalUsers: dashboardData.totalUsers,
+      usersToday: dashboardData.usersToday ?? 0,  // ✅ ADD THIS
       totalRestaurants: dashboardData.totalRestaurants,
       revenueTotal: dashboardData.totalRevenue,
       revenueThisMonth: thisMonthOrders.total,
@@ -94,6 +103,7 @@ export async function getDashboardMetrics(requiresAuth: boolean = true) {
       ordersThisMonth: 0,
       ordersLastMonth: 0,
       totalUsers: 0,
+      usersToday: 0,  // ✅ ADD THIS
       totalRestaurants: 0,
       revenueTotal: 0,
       revenueThisMonth: 0,
