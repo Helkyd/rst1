@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   //])
 
   // Get session first
-  const session = await getSession(authOptions)
+  const session = await getSession();
 
   // Debug: Check what's in the session
   console.log("=== FULL SESSION DEBUG ===");
