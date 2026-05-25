@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { fetcher } from '@/lib/api/api_server_backend'
 
 /** Pedido de recuperação — resposta genérica por segurança */
 export async function POST(request: Request) {
@@ -9,9 +9,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email obrigatório' }, { status: 400 })
     }
 
-    await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
-    })
+    // Check if user exists via API
+    const users = await fetcher<any[]>(`/api/users?search=${email.trim()}`)
+    const userExists = users.some(user => user.email.toLowerCase().trim() === email.toLowerCase().trim())
 
     // Em produção: enviar email com token. Por agora apenas confirmação genérica.
     return NextResponse.json({

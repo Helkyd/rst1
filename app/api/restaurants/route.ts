@@ -1,21 +1,25 @@
-import { prisma } from '@/lib/prisma'
+import { fetcher } from '@/lib/api/api_server_backend'
 import { NextResponse } from 'next/server'
-import { geocodeAddress } from '@/lib/geocode'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { geocodeAddress } from '@/lib/geocode'
 import { seedDefaultWorkingHours } from '@/lib/working-hours'
 
-export const runtime = 'nodejs'
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const params = searchParams.toString()
+    let url = '/api/restaurants'
+    if (params) {
+      url += `?${params}`
+    }
 
-export async function GET() {
-  const restaurants = await prisma.restaurant.findMany({
-    include: {
-      workingHours: true,
-      paymentMethods: true,
-      _count: { select: { products: true } },
-    },
-  })
-  return NextResponse.json(restaurants)
+    const restaurants = await fetcher<any[]>(url)
+    return NextResponse.json(restaurants)
+  } catch (error) {
+    console.error('Error fetching restaurants:', error)
+    return NextResponse.json({ error: 'Erro ao buscar restaurantes' }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {
@@ -38,23 +42,26 @@ export async function POST(request: Request) {
     const trimmedAddress = address.trim()
     const geocoded = await geocodeAddress(trimmedAddress)
 
-    const restaurant = await prisma.$transaction(async (tx) => {
-      const created = await tx.restaurant.create({
-        data: {
-          name: name.trim(),
-          address: trimmedAddress,
-          telephone: telephone?.trim() || null,
-          email: email?.trim() || null,
-          taxId: taxId?.trim() || null,
-          website: website?.trim() || null,
-          logo: logo?.trim() || null,
-          latitude: geocoded?.latitude ?? null,
-          longitude: geocoded?.longitude ?? null,
-        },
-      })
-      await seedDefaultWorkingHours(tx, created.id)
-      return created
+    // Create restaurant via API
+    const restaurantData = {
+      name: name.trim(),
+      address: trimmedAddress,
+      telephone: telephone?.trim() || null,
+      email: email?.trim() || null,
+      taxId: taxId?.trim() || null,
+      website: website?.trim() || null,
+      logo: logo?.trim() || null,
+      latitude: geocoded?.latitude ?? null,
+      longitude: geocoded?.longitude ?? null,
+    }
+
+    const restaurant = await fetcher<any>('/api/restaurants', {
+      method: 'POST',
+      body: JSON.stringify(restaurantData),
     })
+
+    // Seed default working hours for the new restaurant
+    await seedDefaultWorkingHours(restaurant.id)
 
     return NextResponse.json(
       {
@@ -70,7 +77,7 @@ export async function POST(request: Request) {
     console.error('[api/restaurants POST]', error)
     return NextResponse.json(
       { error: 'Erro ao criar restaurante' },
-      { status: 400 }
+      { status: 500 }
     )
   }
 }

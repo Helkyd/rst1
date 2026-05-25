@@ -1,36 +1,12 @@
-import { prisma } from '@/lib/prisma'
+import { fetcher } from '@/lib/api/api_server_backend'
 import { NextResponse } from 'next/server'
 
-export async function GET() {
-  const [
-    totalOrders,
-    totalRevenue,
-    totalUsers,
-    totalRestaurants,
-    recentOrders,
-    ordersByStatus,
-  ] = await Promise.all([
-    prisma.order.count(),
-    prisma.order.aggregate({ _sum: { total: true } }),
-    prisma.user.count({ where: { role: 'CLIENT' } }),
-    prisma.restaurant.count(),
-    prisma.order.findMany({
-      take: 5,
-      orderBy: { createdAt: 'desc' },
-      include: { user: true, items: true },
-    }),
-    prisma.order.groupBy({
-      by: ['status'],
-      _count: true,
-    }),
-  ])
-
-  return NextResponse.json({
-    totalOrders,
-    totalRevenue: totalRevenue._sum.total ?? 0,
-    totalUsers,
-    totalRestaurants,
-    recentOrders,
-    ordersByStatus,
-  })
+export async function GET(request: Request) {
+  try {
+    const dashboardData = await fetcher<any>('/api/dashboard')
+    return NextResponse.json(dashboardData)
+  } catch (error) {
+    console.error('Dashboard error:', error)
+    return NextResponse.json({ error: 'Erro ao carregar dashboard' }, { status: 500 })
+  }
 }
