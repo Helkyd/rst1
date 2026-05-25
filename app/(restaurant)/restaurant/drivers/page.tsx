@@ -1,6 +1,5 @@
-import { prisma } from '@/lib/prisma'
+import { fetcher } from '@/lib/api/api_server_backend'
 import { requireRestaurant } from '@/lib/session'
-import { ordersForRestaurant } from '@/lib/restaurant-scope'
 import Badge from '@/components/ui/Badge'
 import EmptyState from '@/components/ui/EmptyState'
 import StatsCard from '@/components/dashboard/StatsCard'
@@ -12,59 +11,52 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/Table'
+import { formatDate } from '@/lib/utils'
 import { Truck, Package, CheckCircle2 } from 'lucide-react'
-import { OrderStatus } from '@prisma/client'
-
-const ACTIVE_STATUSES: OrderStatus[] = [
-  'ACCEPTED_DRIVER',
-  'PREPARING',
-  'READY_FOR_PICKUP',
-  'PICKED_UP',
-  'IN_TRANSIT',
-]
 
 export default async function RestaurantDriversPage() {
   const session = await requireRestaurant()
   const restaurantId = session.user.restaurantId!
-  const scope = ordersForRestaurant(restaurantId)
 
-  const ordersWithDrivers = await prisma.order.findMany({
-    where: { ...scope, driverId: { not: null } },
-    select: { driverId: true },
-    distinct: ['driverId'],
-  })
-
-  const driverIds = ordersWithDrivers
-    .map((o) => o.driverId)
-    .filter((id): id is string => id !== null)
+  // Get orders for this restaurant to find driver IDs
+  const restaurantOrders = await fetcher<any[]>(`/api/orders?restaurantId=${restaurantId}`)
+  
+  // Extract unique driver IDs from orders
+  const driverIds = [...new Set(
+    restaurantOrders
+      .filter(order => order.driverId)
+      .map(order => order.driverId)
+  )]
 
   const [drivers, activeForRestaurant, completedForRestaurant] =
     await Promise.all([
       driverIds.length === 0
         ? []
-        : prisma.user.findMany({
-            where: { id: { in: driverIds }, role: 'DRIVER' },
-            include: {
-              driverOrders: {
-                where: scope,
-                select: { id: true, status: true },
-              },
-            },
-          }),
-      prisma.order.count({
-        where: {
-          ...scope,
-          driverId: { not: null },
-          status: { in: ACTIVE_STATUSES },
-        },
-      }),
-      prisma.order.count({
-        where: { ...scope, status: 'DELIVERED', driverId: { not: null } },
-      }),
+        : fetcher<any[]>(`/api/users?role=DRIVER&ids=${driverIds.join(',')}`),
+      // For active orders, we need to filter by status
+      restaurantOrders.filter(order => {
+        const activeStatuses = ['ACCEPTED_DRIVER', 'PREPARING', 'READY_FOR_PICKUP', 'PICKED_UP', 'IN_TRANSIT']
+        return order.driverId !== null && activeStatuses.includes(order.status)
+      }).length,
+      // For completed orders
+      restaurantOrders.filter(order => order.status === 'DELIVERED' && order.driverId !== null).length,
     ])
 
-  const busyDrivers = drivers.filter((d) =>
-    d.driverOrders.some((o) => ACTIVE_STATUSES.includes(o.status))
+  // Enhance driver data with their order counts for this restaurant
+  const driversWithOrderCounts = await Promise.all(
+    drivers.map(async (driver) => {
+      const driverOrders = await fetcher<any[]>(`/api/orders/driver/${driver.id}`)
+      const restaurantOrderCount = driverOrders.filter(order => 
+        order.items?.some((item: any) => item.restaurantId === restaurantId) ?? false
+      ).length
+      return { ...driver, driverOrders: driverOrders, restaurantOrderCount }
+    })
+  )
+
+  const busyDrivers = driversWithOrderCounts.filter((d) =>
+    d.driverOrders.some((o) => 
+      ['ACCEPTED_DRIVER', 'PREPARING', 'READY_FOR_PICKUP', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status)
+    )
   ).length
 
   return (
@@ -79,7 +71,7 @@ export default async function RestaurantDriversPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatsCard
           label="Motoristas"
-          value={drivers.length}
+          value={driversWithOrderCounts.length}
           icon={Truck}
           color="orange"
           change="com entregas suas"
@@ -100,7 +92,7 @@ export default async function RestaurantDriversPage() {
         />
       </div>
 
-      {drivers.length === 0 ? (
+      {driversWithOrderCounts.length === 0 ? (
         <EmptyState
           icon={Truck}
           title="Sem motoristas ainda"
@@ -118,9 +110,9 @@ export default async function RestaurantDriversPage() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {drivers.map((driver) => {
+            {driversWithOrderCounts.map((driver) => {
               const isBusy = driver.driverOrders.some((o) =>
-                ACTIVE_STATUSES.includes(o.status)
+                ['ACCEPTED_DRIVER', 'PREPARING', 'READY_FOR_PICKUP', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status)
               )
               return (
                 <TableRow key={driver.id}>
@@ -129,7 +121,7 @@ export default async function RestaurantDriversPage() {
                   </TableCell>
                   <TableCell>{driver.email}</TableCell>
                   <TableCell>{driver.telephone}</TableCell>
-                  <TableCell>{driver.driverOrders.length}</TableCell>
+                  <TableCell>{driver.restaurantOrderCount}</TableCell>
                   <TableCell>
                     <Badge variant={isBusy ? 'warning' : 'success'}>
                       {isBusy ? 'Em entrega' : 'Disponível'}

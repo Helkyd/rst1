@@ -1,7 +1,9 @@
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
-import { Role } from '@prisma/client'
+
+// Define Role type since we removed Prisma
+export type Role = 'ADMIN' | 'RESTAURANT' | 'CLIENT' | 'DRIVER'
 
 export async function getSession() {
   return getServerSession(authOptions)
@@ -12,7 +14,7 @@ export async function requireAuth(allowedRoles: Role[]) {
   if (!session?.user) {
     redirect('/login')
   }
-  if (!allowedRoles.includes(session.user.role)) {
+  if (!allowedRoles.includes(session.user.role as Role)) {
     if (session.user.role === 'RESTAURANT') {
       redirect(
         session.user.restaurantId

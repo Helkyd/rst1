@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
-import { WeekDay } from '@prisma/client'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import {
@@ -11,6 +10,8 @@ import {
   WEEK_DAYS_ORDER,
   type WorkingHourInput,
 } from '@/lib/working-hours'
+
+type WeekDay = 'SUNDAY' | 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY'
 
 type Props = {
   restaurantId: string

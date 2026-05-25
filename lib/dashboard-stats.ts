@@ -1,4 +1,5 @@
-import { prisma } from '@/lib/prisma'
+import { fetcher } from './api/api_server_backend'
+import { formatChange } from './utils'
 
 const MONTH_LABELS = [
   'Jan',
@@ -21,15 +22,22 @@ function monthRange(year: number, month: number) {
   return { start, end }
 }
 
-export function formatChange(current: number, previous: number, suffix = '') {
-  if (previous === 0) {
-    if (current === 0) return `0${suffix}`
-    return `+100%${suffix}`
-  }
-  const pct = Math.round(((current - previous) / previous) * 100)
-  const sign = pct >= 0 ? '+' : ''
-  return `${sign}${pct}%${suffix}`
+function formatISO(date: Date) {
+  return date.toISOString()
 }
+
+async function fetchOrdersInRange(start: Date, end: Date) {
+  try {
+    const orders = await fetcher<Order[]>(`/api/orders?startDate=${formatISO(start)}&endDate=${formatISO(end)}`)
+    const total = orders.reduce((sum, order) => sum + (order.total || 0), 0)
+    return { count: orders.length, total }
+  } catch (error) {
+    console.error('Error fetching orders in range:', error)
+    return { count: 0, total: 0 }
+  }
+}
+
+// lib/dashboard-stats.ts
 
 export async function getDashboardMetrics() {
   const now = new Date()
@@ -39,67 +47,228 @@ export async function getDashboardMetrics() {
     now.getMonth() === 0 ? 11 : now.getMonth() - 1
   )
 
+  try {
+    // Fetch dashboard data - fetcher will handle auth automatically
+    const dashboardData = await fetcher<{
+      totalOrders: number
+      totalRevenue: number
+      totalUsers: number
+      totalRestaurants: number
+      recentOrders: any[]
+      ordersByStatus: any[]
+    }>('/api/admin/dashboard', {}, true) // requiresAuth = true
+
+    // Fetch orders for current month
+    const thisMonthOrders = await fetchOrdersInRange(thisMonth.start, thisMonth.end)
+    // Fetch orders for last month
+    const lastMonthOrders = await fetchOrdersInRange(lastMonth.start, lastMonth.end)
+
+    const usersToday = 0
+    const revThis = thisMonthOrders.total
+    const revLast = lastMonthOrders.total
+
+    // Fetch monthly revenue chart
+    const monthlyRevenue = await getMonthlyRevenueChart()
+
+    return {
+      totalOrders: dashboardData.totalOrders,
+      ordersThisMonth: thisMonthOrders.count,
+      ordersLastMonth: lastMonthOrders.count,
+      totalUsers: dashboardData.totalUsers,
+      usersToday,
+      totalRestaurants: dashboardData.totalRestaurants,
+      revenueTotal: dashboardData.totalRevenue,
+      revenueThisMonth: revThis,
+      revenueLastMonth: revLast,
+      recentOrders: dashboardData.recentOrders,
+      monthlyRevenue,
+      orderChange: formatChange(thisMonthOrders.count, lastMonthOrders.count, ' vs mês anterior'),
+      revenueChange: formatChange(revThis, revLast, ' vs mês anterior'),
+    }
+  } catch (error) {
+    console.error('Error fetching dashboard metrics:', error)
+    // Return default values in case of error
+    return {
+      totalOrders: 0,
+      ordersThisMonth: 0,
+      ordersLastMonth: 0,
+      totalUsers: 0,
+      usersToday: 0,
+      totalRestaurants: 0,
+      revenueTotal: 0,
+      revenueThisMonth: 0,
+      revenueLastMonth: 0,
+      recentOrders: [],
+      monthlyRevenue: [],
+      orderChange: '0% vs mês anterior',
+      revenueChange: '0% vs mês anterior',
+    }
+  }
+}
+
+/*
+// Update fetchOrdersInRange and getMonthlyRevenueChart similarly
+export async function fetchOrdersInRange(startDate: Date, endDate: Date) {
+  const start = startDate.toISOString().split('T')[0];
+  const end = endDate.toISOString().split('T')[0];
+  
+  const data = await fetcher<{ count: number; total: number }>(
+    `/api/admin/orders/range?startDate=${start}&endDate=${end}`,
+    {},
+    true
+  );
+  
+  return data;
+}
+
+export async function getMonthlyRevenueChart() {
+  const data = await fetcher<any[]>('/api/admin/revenue/monthly', {}, true);
+  return data;
+}
+  */
+
+// lib/dashboard-stats.ts
+export async function getDashboardMetrics_v1(accessToken?: string) {
+  const now = new Date()
+  const thisMonth = monthRange(now.getFullYear(), now.getMonth())
+  const lastMonth = monthRange(
+    now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear(),
+    now.getMonth() === 0 ? 11 : now.getMonth() - 1
+  )
+
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
-  const [
-    totalOrders,
-    ordersThisMonth,
-    ordersLastMonth,
-    totalUsers,
-    usersToday,
-    totalRestaurants,
-    revenueAll,
-    revenueThisMonth,
-    revenueLastMonth,
-    recentOrders,
-    monthlyRevenue,
-  ] = await Promise.all([
-    prisma.order.count(),
-    prisma.order.count({
-      where: { createdAt: { gte: thisMonth.start, lte: thisMonth.end } },
-    }),
-    prisma.order.count({
-      where: { createdAt: { gte: lastMonth.start, lte: lastMonth.end } },
-    }),
-    prisma.user.count({ where: { role: 'CLIENT' } }),
-    prisma.user.count({
-      where: { role: 'CLIENT', createdAt: { gte: todayStart } },
-    }),
-    prisma.restaurant.count(),
-    prisma.order.aggregate({ _sum: { total: true } }),
-    prisma.order.aggregate({
-      where: { createdAt: { gte: thisMonth.start, lte: thisMonth.end } },
-      _sum: { total: true },
-    }),
-    prisma.order.aggregate({
-      where: { createdAt: { gte: lastMonth.start, lte: lastMonth.end } },
-      _sum: { total: true },
-    }),
-    prisma.order.findMany({
-      take: 5,
-      orderBy: { createdAt: 'desc' },
-      include: { user: { select: { name: true } } },
-    }),
-    getMonthlyRevenueChart(),
-  ])
+  try {
+    // Fetch dashboard data for totals - pass the token
+    const dashboardData = await fetcher<{
+      totalOrders: number
+      totalRevenue: number
+      totalUsers: number
+      totalRestaurants: number
+      recentOrders: any[]
+      ordersByStatus: any[]
+    }>('/api/admin/dashboard', {
+      token: accessToken // Pass token to fetcher
+    })
 
-  const revThis = revenueThisMonth._sum.total ?? 0
-  const revLast = revenueLastMonth._sum.total ?? 0
+    // Fetch orders for current month - pass the token
+    const thisMonthOrders = await fetchOrdersInRange(thisMonth.start, thisMonth.end, accessToken)
+    // Fetch orders for last month - pass the token
+    const lastMonthOrders = await fetchOrdersInRange(lastMonth.start, lastMonth.end, accessToken)
 
-  return {
-    totalOrders,
-    ordersThisMonth,
-    ordersLastMonth,
-    totalUsers,
-    usersToday,
-    totalRestaurants,
-    revenueTotal: revenueAll._sum.total ?? 0,
-    revenueThisMonth: revThis,
-    revenueLastMonth: revLast,
-    recentOrders,
-    monthlyRevenue,
-    orderChange: formatChange(ordersThisMonth, ordersLastMonth, ' vs mês anterior'),
-    revenueChange: formatChange(revThis, revLast, ' vs mês anterior'),
+    // For usersToday, we don't have a direct API, so we'll set to 0 (limitation)
+    const usersToday = 0
+
+    const revThis = thisMonthOrders.total
+    const revLast = lastMonthOrders.total
+
+    // Fetch monthly revenue chart - pass the token
+    const monthlyRevenue = await getMonthlyRevenueChart(accessToken)
+
+    return {
+      totalOrders: dashboardData.totalOrders,
+      ordersThisMonth: thisMonthOrders.count,
+      ordersLastMonth: lastMonthOrders.count,
+      totalUsers: dashboardData.totalUsers,
+      usersToday,
+      totalRestaurants: dashboardData.totalRestaurants,
+      revenueTotal: dashboardData.totalRevenue,
+      revenueThisMonth: revThis,
+      revenueLastMonth: revLast,
+      recentOrders: dashboardData.recentOrders,
+      monthlyRevenue,
+      orderChange: formatChange(thisMonthOrders.count, lastMonthOrders.count, ' vs mês anterior'),
+      revenueChange: formatChange(revThis, revLast, ' vs mês anterior'),
+    }
+  } catch (error) {
+    console.error('Error fetching dashboard metrics:', error)
+    // Return default values in case of error
+    return {
+      totalOrders: 0,
+      ordersThisMonth: 0,
+      ordersLastMonth: 0,
+      totalUsers: 0,
+      usersToday: 0,
+      totalRestaurants: 0,
+      revenueTotal: 0,
+      revenueThisMonth: 0,
+      revenueLastMonth: 0,
+      recentOrders: [],
+      monthlyRevenue: [],
+      orderChange: '0% vs mês anterior',
+      revenueChange: '0% vs mês anterior',
+    }
+  }
+}
+
+export async function getDashboardMetrics_() {
+  const now = new Date()
+  const thisMonth = monthRange(now.getFullYear(), now.getMonth())
+  const lastMonth = monthRange(
+    now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear(),
+    now.getMonth() === 0 ? 11 : now.getMonth() - 1
+  )
+
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  try {
+    // Fetch dashboard data for totals
+    const dashboardData = await fetcher<{
+      totalOrders: number
+      totalRevenue: number
+      totalUsers: number
+      totalRestaurants: number
+      recentOrders: any[]
+      ordersByStatus: any[]
+    }>('/api/admin/dashboard')
+
+    // Fetch orders for current month
+    const thisMonthOrders = await fetchOrdersInRange(thisMonth.start, thisMonth.end)
+    // Fetch orders for last month
+    const lastMonthOrders = await fetchOrdersInRange(lastMonth.start, lastMonth.end)
+
+    // For usersToday, we don't have a direct API, so we'll set to 0 (limitation)
+    const usersToday = 0
+
+    const revThis = thisMonthOrders.total
+    const revLast = lastMonthOrders.total
+
+    // Fetch monthly revenue chart (last 6 months)
+    const monthlyRevenue = await getMonthlyRevenueChart()
+
+    return {
+      totalOrders: dashboardData.totalOrders,
+      ordersThisMonth: thisMonthOrders.count,
+      ordersLastMonth: lastMonthOrders.count,
+      totalUsers: dashboardData.totalUsers,
+      usersToday,
+      totalRestaurants: dashboardData.totalRestaurants,
+      revenueTotal: dashboardData.totalRevenue,
+      revenueThisMonth: revThis,
+      revenueLastMonth: revLast,
+      recentOrders: dashboardData.recentOrders,
+      monthlyRevenue,
+      orderChange: formatChange(thisMonthOrders.count, lastMonthOrders.count, ' vs mês anterior'),
+      revenueChange: formatChange(revThis, revLast, ' vs mês anterior'),
+    }
+  } catch (error) {
+    console.error('Error fetching dashboard metrics:', error)
+    // Return default values in case of error
+    return {
+      totalOrders: 0,
+      ordersThisMonth: 0,
+      ordersLastMonth: 0,
+      totalUsers: 0,
+      usersToday: 0,
+      totalRestaurants: 0,
+      revenueTotal: 0,
+      revenueThisMonth: 0,
+      revenueLastMonth: 0,
+      recentOrders: [],
+      monthlyRevenue: [],
+      orderChange: '0% vs mês anterior',
+      revenueChange: '0% vs mês anterior',
+    }
   }
 }
 
@@ -111,16 +280,18 @@ export async function getMonthlyRevenueChart() {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const { start, end } = monthRange(d.getFullYear(), d.getMonth())
 
-    const agg = await prisma.order.aggregate({
-      where: { createdAt: { gte: start, lte: end } },
-      _sum: { total: true },
-    })
+    const { total } = await fetchOrdersInRange(start, end)
 
     points.push({
       month: MONTH_LABELS[d.getMonth()],
-      revenue: agg._sum.total ?? 0,
+      revenue: total,
     })
   }
 
   return points
+}
+
+interface Order {
+  total: number
+  // other fields as needed
 }

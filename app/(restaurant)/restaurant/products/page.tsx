@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma'
+import { fetcher } from '@/lib/api/api_server_backend'
 import { requireRestaurant } from '@/lib/session'
 import {
   Table,
@@ -15,16 +15,9 @@ export default async function RestaurantProductsPage() {
   const session = await requireRestaurant()
   const restaurantId = session.user.restaurantId!
 
-  const [products, restaurant] = await Promise.all([
-    prisma.product.findMany({
-      where: { restaurantId },
-      orderBy: { name: 'asc' },
-      include: { restaurant: { select: { name: true } } },
-    }),
-    prisma.restaurant.findUnique({
-      where: { id: restaurantId },
-      select: { id: true, name: true },
-    }),
+  const [restaurant, products] = await Promise.all([
+    fetcher<{ id: string; name: string }>(`/api/restaurants/${restaurantId}`),
+    fetcher<any[]>(`/api/restaurants/${restaurantId}/products`)
   ])
 
   const restaurants = restaurant ? [restaurant] : []
@@ -52,6 +45,9 @@ export default async function RestaurantProductsPage() {
             <TableRow key={product.id}>
               <TableCell className="font-medium text-white">
                 {product.name}
+              </TableCell>
+              <TableCell className="text-gray-400">
+                {product.restaurant?.name ?? 'Desconhecido'}
               </TableCell>
               <TableCell>{formatCurrency(product.price)}</TableCell>
               <TableCell className="text-gray-500 text-xs">

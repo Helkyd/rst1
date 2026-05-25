@@ -1,32 +1,31 @@
 import 'dotenv/config'
 import bcrypt from 'bcryptjs'
-import { PrismaClient } from '@prisma/client'
-import { PrismaPg } from '@prisma/adapter-pg'
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
-})
+import { fetcher } from '@/lib/api/api_server_backend'
 
 async function main() {
   const email = 'admin@foodadmin.ao'
   const password = 'admin123'
 
-  const user = await prisma.user.findUnique({ where: { email } })
-  console.log('Found:', user ? { email: user.email, role: user.role } : null)
+  try {
+    // Check if user exists via API
+    const users = await fetcher<any[]>(`/api/users?search=${email}`)
+    const user = users.find(u => u.email.toLowerCase().trim() === email.toLowerCase().trim())
+    
+    console.log('Found:', user ? { email: user.email, role: user.role } : null)
 
-  if (user) {
-    const valid = await bcrypt.compare(password, user.password)
-    console.log('Password admin123 valid:', valid)
-    console.log('Hash prefix:', user.password.slice(0, 7))
+    if (user) {
+      // For security, we cannot verify password directly via API
+      // In a real implementation, we would need to attempt login
+      console.log('Password verification: Skipped for security (would require login attempt)')
+      console.log('Hash prefix: [PROTECTED]')
+    }
+
+    // Get all admin-like users
+    const adminUsers = await fetcher<any[]>(`/api/users?role=ADMIN`)
+    console.log('Users matching admin:', adminUsers.map(u => ({ email: u.email, role: u.role })))
+  } catch (error) {
+    console.error('Error verifying admin:', error)
   }
-
-  const all = await prisma.user.findMany({
-    where: { email: { contains: 'admin' } },
-    select: { email: true, role: true },
-  })
-  console.log('Users matching admin:', all)
 }
 
-main()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect())
+main().catch(console.error)

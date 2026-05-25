@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { WeekDay } from '@prisma/client'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { fetcher } from '@/lib/api/api_server_backend'
 import {
   canManageRestaurant,
   normalizeWorkingHours,
   type WorkingHourInput,
 } from '@/lib/working-hours'
+
+// We don't need WeekDay from Prisma anymore since we're using API-only
+// Define WeekDay type for validation
+type WeekDay = 'SUNDAY' | 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY'
 
 export const runtime = 'nodejs'
 
@@ -16,15 +19,16 @@ function parseHours(body: unknown): WorkingHourInput[] | null {
   const hours = (body as { hours: unknown }).hours
   if (!Array.isArray(hours)) return null
 
-  const validDays = new Set(Object.values(WeekDay))
+  const validDays = new Set<WeekDay>(['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'])
   const parsed: WorkingHourInput[] = []
 
   for (const row of hours) {
     if (!row || typeof row !== 'object') continue
     const r = row as Record<string, unknown>
-    if (!validDays.has(r.dayOfWeek as WeekDay)) continue
+    const dayOfWeek = r.dayOfWeek as string
+    if (!validDays.has(dayOfWeek as WeekDay)) continue
     parsed.push({
-      dayOfWeek: r.dayOfWeek as WeekDay,
+      dayOfWeek: dayOfWeek as WeekDay,
       startTime: String(r.startTime ?? '09:00'),
       endTime: String(r.endTime ?? '22:00'),
       isOpen: Boolean(r.isOpen),
@@ -45,16 +49,20 @@ export async function GET(
   }
 
   const { id } = await params
-  if (!canManageRestaurant(session.user, id)) {
+  
+  // Check if user can manage this restaurant
+  const restaurant = await fetcher<any>(`/api/restaurants/${id}`)
+  
+  // Check if user can manage this restaurant
+  const canManage = session.user.role === 'ADMIN' || 
+                   (session.user.role === 'RESTAURANT' && session.user.restaurantId === id)
+  
+  if (!canManage) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 403 })
   }
 
-  const hours = await prisma.restaurantWorkingHour.findMany({
-    where: { restaurantId: id },
-    orderBy: { dayOfWeek: 'asc' },
-  })
-
-  return NextResponse.json(hours)
+  // Return the working hours from the restaurant object
+  return NextResponse.json(restaurant.workingHours || [])
 }
 
 export async function PUT(
@@ -68,15 +76,20 @@ export async function PUT(
     }
 
     const { id } = await params
-    if (!canManageRestaurant(session.user, id)) {
+    
+    // Check authorization
+    const canManage = session.user.role === 'ADMIN' || 
+                     (session.user.role === 'RESTAURANT' && session.user.restaurantId === id)
+    
+    if (!canManage) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 403 })
     }
 
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { id },
-      select: { id: true },
-    })
-    if (!restaurant) {
+    // Fetch restaurant to verify it exists
+    let restaurant
+    try {
+      restaurant = await fetcher<any>(`/api/restaurants/${id}`)
+    } catch (error) {
       return NextResponse.json(
         { error: 'Restaurante não encontrado' },
         { status: 404 }
@@ -91,26 +104,13 @@ export async function PUT(
       )
     }
 
-    const saved = await prisma.$transaction(async (tx) => {
-      await tx.restaurantWorkingHour.deleteMany({
-        where: { restaurantId: id },
-      })
-      await tx.restaurantWorkingHour.createMany({
-        data: hours.map((h) => ({
-          restaurantId: id,
-          dayOfWeek: h.dayOfWeek,
-          startTime: h.startTime,
-          endTime: h.endTime,
-          isOpen: h.isOpen,
-        })),
-      })
-      return tx.restaurantWorkingHour.findMany({
-        where: { restaurantId: id },
-        orderBy: { dayOfWeek: 'asc' },
-      })
+    // Update the restaurant with new working hours
+    const updatedRestaurant = await fetcher<any>(`/api/restaurants/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ workingHours: hours }),
     })
 
-    return NextResponse.json({ hours: saved })
+    return NextResponse.json({ hours: updatedRestaurant.workingHours })
   } catch (error) {
     console.error('[api/working-hours PUT]', error)
     return NextResponse.json(

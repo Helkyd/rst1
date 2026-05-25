@@ -1,25 +1,12 @@
-import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
-import { OrderStatus } from '@prisma/client'
+import { fetcher } from '@/lib/api/api_server_backend'
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const order = await prisma.order.findUnique({
-    where: { id },
-    include: {
-      user: true,
-      driver: true,
-      items: { include: { product: true, restaurant: true } },
-    },
-  })
-
-  if (!order) {
-    return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 })
-  }
-
+  const order = await fetcher<any>(`/api/orders/${id}`)
   return NextResponse.json(order)
 }
 
@@ -32,20 +19,21 @@ export async function PATCH(
   try {
     const { status } = await request.json()
 
-    if (!status || !Object.values(OrderStatus).includes(status)) {
+    // Validate status - using the same validation as the backend API
+    const validStatuses = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'ACCEPTED_DRIVER', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED']
+
+    if (!status || !validStatuses.includes(status)) {
       return NextResponse.json({ error: 'Status inválido' }, { status: 400 })
     }
 
-    const order = await prisma.order.update({
-      where: { id },
-      data: { status },
+    const order = await fetcher<any>(`/api/orders/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
     })
 
     return NextResponse.json(order)
-  } catch {
-    return NextResponse.json(
-      { error: 'Erro ao atualizar pedido' },
-      { status: 400 }
-    )
+  } catch (error) {
+    console.error('Error updating order status:', error)
+    return NextResponse.json({ error: 'Erro ao atualizar pedido' }, { status: 500 })
   }
 }

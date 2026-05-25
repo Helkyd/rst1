@@ -21,3 +21,13 @@ export function formatDate(date: Date | string) {
     minute: '2-digit',
   }).format(new Date(date))
 }
+
+// Helper function to format percentage changes
+export function formatChange(current: number, previous: number, suffix: string): string {
+  if (previous === 0) {
+    return current > 0 ? `+100%${suffix}` : `0%${suffix}`;
+  }
+  const change = ((current - previous) / previous) * 100;
+  const sign = change > 0 ? '+' : '';
+  return `${sign}${change.toFixed(1)}%${suffix}`;
+}

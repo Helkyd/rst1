@@ -1,24 +1,27 @@
-import { prisma } from '@/lib/prisma'
+import { fetcher } from '@/lib/api/api_server_backend'
 import { requireRestaurant } from '@/lib/session'
-import { ordersForRestaurant } from '@/lib/restaurant-scope'
 import OrdersTable from '@/components/orders/OrdersTable'
 
 export default async function RestaurantOrdersPage() {
   const session = await requireRestaurant()
   const restaurantId = session.user.restaurantId!
 
-  const orders = await prisma.order.findMany({
-    where: ordersForRestaurant(restaurantId),
-    orderBy: { createdAt: 'desc' },
-    include: {
-      user: { select: { name: true } },
-      driver: { select: { name: true } },
-      items: {
-        where: { restaurantId },
-        include: { restaurant: { select: { name: true } } },
-      },
-    },
-  })
+  // Since we don't have a direct API endpoint for restaurant-scoped orders,
+  // we'll fetch all orders and filter on the client side
+  // This is a limitation of the API-only approach
+  const allOrders = await fetcher<any[]>(`/api/orders`)
+  
+  // Filter orders that have items from this restaurant
+  const orders = allOrders.filter(order => 
+    order.items?.some((item: any) => item.restaurantId === restaurantId) ?? false
+  ).sort((a, b) => 
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  ).map(order => ({
+    ...order,
+    user: { name: order.user?.name ?? '' },
+    driver: { name: order.driver?.name ?? '' },
+    items: order.items?.filter((item: any) => item.restaurantId === restaurantId) ?? []
+  }))
 
   return (
     <div className="space-y-6">

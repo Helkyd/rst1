@@ -4,12 +4,26 @@ import StatsCard from '@/components/dashboard/StatsCard'
 import RevenueChart from '@/components/dashboard/RevenueChart'
 import RecentOrders from '@/components/dashboard/RecentOrders'
 import { ShoppingBag, Users, UtensilsCrossed, TrendingUp } from 'lucide-react'
+import { authOptions } from '@/lib/auth'
 
 export default async function DashboardPage() {
-  const [session, metrics] = await Promise.all([
-    getSession(),
-    getDashboardMetrics(),
-  ])
+  //const [session, metrics] = await Promise.all([
+  //  getSession(),
+  //  getDashboardMetrics(getSession.user.accessToken),
+  //])
+
+  // Get session first
+  const session = await getSession(authOptions)
+
+  // Debug: Check what's in the session
+  console.log("=== FULL SESSION DEBUG ===");
+  console.log("Session exists:", !!session);
+  console.log("Session user:", session?.user);
+  console.log("Session user accessToken:", session?.user?.accessToken);
+  console.log("Complete session:", JSON.stringify(session, null, 2));
+  
+  // Then get metrics with the access token from session
+  const metrics = await getDashboardMetrics()
 
   const firstName = session?.user?.name?.split(' ')[0] ?? 'Admin'
 

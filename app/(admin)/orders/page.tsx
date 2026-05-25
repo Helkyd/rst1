@@ -1,6 +1,5 @@
-import { prisma } from '@/lib/prisma'
 import OrdersTable from '@/components/orders/OrdersTable'
-import { Prisma } from '@prisma/client'
+import { fetcher } from '@/lib/api/api_server_backend'
 
 export default async function OrdersPage({
   searchParams,
@@ -10,36 +9,39 @@ export default async function OrdersPage({
   const { q } = await searchParams
   const query = q?.trim()
 
-  const where: Prisma.OrderWhereInput | undefined = query
-    ? {
-        OR: [
-          { user: { name: { contains: query, mode: 'insensitive' } } },
-          { driver: { name: { contains: query, mode: 'insensitive' } } },
-          {
-            items: {
-              some: {
-                restaurant: {
-                  name: { contains: query, mode: 'insensitive' },
-                },
-              },
-            },
-          },
-          ...(Number.isFinite(Number(query))
-            ? [{ orderCounter: Number(query) }]
-            : []),
-        ],
-      }
-    : undefined
+  // Fetch all orders from the API (we assume the API returns the same shape as the Prisma query with includes)
+  const allOrders = await fetcher<any[]>('/api/orders')
 
-  const orders = await prisma.order.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    include: {
-      user: { select: { name: true } },
-      driver: { select: { name: true } },
-      items: { include: { restaurant: { select: { name: true } } } },
-    },
-  })
+  // Filter by query if provided (client-side filtering)
+  const filteredOrders = query ? allOrders.filter(order => {
+    const searchLower = query.toLowerCase()
+    
+    // Check user name
+    const userMatch = order.user?.name?.toLowerCase().includes(searchLower) ?? false
+    if (userMatch) return true
+    
+    // Check driver name
+    const driverMatch = order.driver?.name?.toLowerCase().includes(searchLower) ?? false
+    if (driverMatch) return true
+    
+    // Check restaurant name in items
+    const restaurantMatch = order.items?.some((item: any) => 
+      item.restaurant?.name?.toLowerCase().includes(searchLower) ?? false
+    ) ?? false
+    if (restaurantMatch) return true
+    
+    // Check orderCounter (if query is a number)
+    if (Number.isFinite(Number(query))) {
+      return order.orderCounter === Number(query)
+    }
+    
+    return false
+  }) : allOrders
+
+  // Sort by createdAt descending
+  const orders = filteredOrders.sort((a, b) => 
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )
 
   return (
     <div className="space-y-6">

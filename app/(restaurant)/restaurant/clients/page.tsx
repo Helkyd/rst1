@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma'
+import { fetcher } from '@/lib/api/api_server_backend'
 import { requireRestaurant } from '@/lib/session'
 import {
   Table,
@@ -14,23 +14,22 @@ export default async function RestaurantClientsPage() {
   const session = await requireRestaurant()
   const restaurantId = session.user.restaurantId!
 
-  const clients = await prisma.user.findMany({
-    where: {
-      role: 'CLIENT',
-      orders: {
-        some: {
-          items: { some: { restaurantId } },
-        },
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      orders: {
-        where: { items: { some: { restaurantId } } },
-        select: { id: true },
-      },
-    },
-  })
+  // Fetch all CLIENT users
+  const users = await fetcher<any[]>(`/api/users?role=CLIENT`)
+
+  // For each user, fetch their orders and count how many are from this restaurant
+  const clientsWithOrderCounts = await Promise.all(
+    users.map(async (user) => {
+      const orders = await fetcher<any[]>(`/api/orders/user/${user.id}`)
+      const restaurantOrderCount = orders.reduce((count, order) => {
+        const hasRestaurantItem = order.items?.some((item: any) => item.restaurantId === restaurantId) ?? false
+        return count + (hasRestaurantItem ? 1 : 0)
+      }, 0)
+      return { ...user, orderCount: restaurantOrderCount }
+    })
+  )
+
+  const clients = clientsWithOrderCounts.filter(user => user.orderCount > 0)
 
   return (
     <div className="space-y-6">
@@ -59,7 +58,7 @@ export default async function RestaurantClientsPage() {
               </TableCell>
               <TableCell>{client.email}</TableCell>
               <TableCell>{client.telephone}</TableCell>
-              <TableCell>{client.orders.length}</TableCell>
+              <TableCell>{client.orderCount}</TableCell>
               <TableCell className="text-gray-500 text-xs">
                 {formatDate(client.createdAt)}
               </TableCell>

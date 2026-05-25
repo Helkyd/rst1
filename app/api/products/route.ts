@@ -1,20 +1,50 @@
-import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
-import { TaxPercentage } from '@prisma/client'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { fetcher } from '@/lib/api/api_server_backend'
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const restaurantId = searchParams.get('restaurantId')
-
-  const products = await prisma.product.findMany({
-    where: restaurantId ? { restaurantId } : undefined,
-    orderBy: { name: 'asc' },
-    include: { restaurant: { select: { name: true } } },
-  })
-
-  return NextResponse.json(products)
+  try {
+    const { searchParams } = new URL(request.url)
+    const restaurantId = searchParams.get('restaurantId')
+    
+    let url = '/api/products'
+    if (restaurantId) {
+      url += `?restaurantId=${restaurantId}`
+    }
+    
+    const products = await fetcher<any[]>(url)
+    
+    // Add restaurant name to each product for compatibility
+    const productsWithRestaurant = await Promise.all(
+      products.map(async (product) => {
+        if (product.restaurantId) {
+          try {
+            const restaurant = await fetcher<any>(`/api/restaurants/${product.restaurantId}`)
+            return {
+              ...product,
+              restaurant: { name: restaurant.name || 'Unknown' }
+            }
+          } catch (error) {
+            console.error(`Error fetching restaurant for product ${product.id}:`, error)
+            return {
+              ...product,
+              restaurant: { name: 'Unknown' }
+            }
+          }
+        }
+        return {
+          ...product,
+          restaurant: { name: null }
+        }
+      })
+    )
+    
+    return NextResponse.json(productsWithRestaurant)
+  } catch (error) {
+    console.error('Error fetching products:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {
@@ -25,7 +55,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    let { name, price, restaurantId, taxPercentage } = body
+    let { name, price, restaurantId, taxPercentage, description, image1, image2, image3, image4 } = body
 
     if (session.user.role === 'RESTAURANT') {
       if (!session.user.restaurantId) {
@@ -48,25 +78,33 @@ export async function POST(request: Request) {
       )
     }
 
-    const tax =
-      taxPercentage && Object.values(TaxPercentage).includes(taxPercentage)
-        ? taxPercentage
-        : TaxPercentage.VAT_14
+    // Map tax percentage to valid values
+    const validTaxRates = ['VAT_6', 'VAT_13', 'VAT_23'];
+    const tax = taxPercentage && validTaxRates.includes(taxPercentage) ? taxPercentage : 'VAT_23';
 
-    const product = await prisma.product.create({
-      data: {
-        name: name.trim(),
-        price,
-        restaurantId,
-        taxPercentage: tax,
-      },
+    const productData = {
+      name: name.trim(),
+      price,
+      restaurantId,
+      taxPercentage: tax,
+      description: description?.trim() || null,
+      image1: image1 || null,
+      image2: image2 || null,
+      image3: image3 || null,
+      image4: image4 || null,
+    }
+
+    const product = await fetcher<any>('/api/products', {
+      method: 'POST',
+      body: JSON.stringify(productData),
     })
 
     return NextResponse.json(product, { status: 201 })
-  } catch {
+  } catch (error) {
+    console.error('Error creating product:', error)
     return NextResponse.json(
       { error: 'Erro ao criar produto' },
-      { status: 400 }
+      { status: 500 }
     )
   }
 }

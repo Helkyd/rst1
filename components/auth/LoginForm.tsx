@@ -9,27 +9,6 @@ import Input from '@/components/ui/Input'
 import Label from '@/components/ui/Label'
 import Button from '@/components/ui/Button'
 
-function resolveRedirect(
-  role: string,
-  needsSetup: boolean,
-  callbackUrl: string | null
-) {
-  if (callbackUrl && !callbackUrl.includes('/login')) {
-    try {
-      const url = new URL(callbackUrl, window.location.origin)
-      if (url.origin === window.location.origin) {
-        return url.pathname + url.search
-      }
-    } catch {
-      /* ignore invalid callback */
-    }
-  }
-  if (role === 'RESTAURANT') {
-    return needsSetup ? '/restaurant/setup' : '/restaurant/dashboard'
-  }
-  return '/dashboard'
-}
-
 export default function LoginForm() {
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get('callbackUrl')
@@ -51,48 +30,44 @@ export default function LoginForm() {
     const normalizedEmail = email.toLowerCase().trim()
 
     try {
-      setStatusText('A validar credenciais...')
-
-      const loginRes = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail, password }),
-      })
-
-      const loginData = await loginRes.json()
-
-      if (!loginRes.ok) {
-        setError(loginData.error ?? 'Email ou palavra-passe incorretos.')
-        setLoading(false)
-        setStatusText(null)
-        return
-      }
-
       setStatusText('A iniciar sessão...')
 
+      // Direct call to NextAuth - it handles backend validation
       const result = await signIn('credentials', {
         email: normalizedEmail,
-        password: loginData.loginToken,
+        password: password,
         redirect: false,
       })
 
       if (result?.error) {
-        setError('Sessão não iniciada. Reinicie o servidor e tente novamente.')
+        setError('Email ou palavra-passe incorretos.')
         setLoading(false)
         setStatusText(null)
         return
       }
 
-      const destination = resolveRedirect(
-        loginData.role ?? 'ADMIN',
-        !!loginData.needsSetup,
-        callbackUrl
-      )
+      // Get session to determine user role
+      setStatusText('A carregar dados...')
+      const sessionRes = await fetch('/api/auth/session')
+      const session = await sessionRes.json()
+      
+      const role = session?.user?.role || 'ADMIN'
+      const needsSetup = session?.user?.needsSetup || false
+      
+      let destination = callbackUrl || '/dashboard'
+      
+      if (!callbackUrl || callbackUrl.includes('/login')) {
+        if (role === 'RESTAURANT') {
+          destination = needsSetup ? '/restaurant/setup' : '/restaurant/dashboard'
+        } else {
+          destination = '/dashboard'
+        }
+      }
 
       setStatusText('A redirecionar...')
-      // Navegação completa — evita ficar preso no login enquanto o dashboard compila
       window.location.assign(destination)
-    } catch {
+    } catch (error) {
+      console.error('Login error:', error)
       setError('Erro de rede. Verifique se o servidor está a correr.')
       setLoading(false)
       setStatusText(null)
