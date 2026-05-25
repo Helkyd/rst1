@@ -1,9 +1,9 @@
 // app/api/auth/[...nextauth]/route.ts
 import NextAuth from "next-auth";
 import type { NextAuthOptions } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-// Export the authOptions separately
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -30,16 +30,21 @@ export const authOptions: NextAuthOptions = {
             })
           });
           
-          const responseText = await res.text();
-          const data = JSON.parse(responseText);
+          const data = await res.json();
           
-          if (res.ok && data) {
+          if (res.ok && data && data.user && data.access_token) {
+            // Ensure the role matches the Role type
+            const validRoles = ['ADMIN', 'RESTAURANT', 'CLIENT', 'DRIVER'];
+            const userRole = validRoles.includes(data.user.role) ? data.user.role : 'CLIENT';
+            
             return {
               id: data.user.id,
               email: data.user.email,
               name: data.user.name,
-              role: data.user.role,
+              role: userRole,  // Now this matches the Role type
               accessToken: data.access_token,
+              restaurantId: data.user.restaurantId || null,
+              restaurantName: data.user.restaurantName || null,
             };
           }
           
@@ -53,34 +58,40 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "jwt",
+    maxAge: 7 * 24 * 60 * 60, // 7 days
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: true,
+  debug: process.env.NODE_ENV === 'development',
   pages: {
     signIn: '/login',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user }: { token: JWT; user: any }) {
+      console.log("[JWT] Callback - user present:", !!user);
+      
       if (user) {
         token.id = user.id;
-        token.role = user.role;
+        token.role = user.role as any; // Type assertion for Role
         token.accessToken = user.accessToken;
+        token.restaurantId = user.restaurantId;
+        token.restaurantName = user.restaurantName;
       }
       return token;
     },
-    async session({ session, token }) {
+    async session({ session, token }: { session: any; token: JWT }) {
+      console.log("[SESSION] Callback - token present:", !!token);
+      
       if (session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as string;
-        session.user.accessToken = token.accessToken as string;
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.accessToken = token.accessToken;
+        session.user.restaurantId = token.restaurantId;
+        session.user.restaurantName = token.restaurantName;
       }
       return session;
     }
   }
 };
 
-// Create the handler using authOptions
 const handler = NextAuth(authOptions);
-
-// Export both the handler AND authOptions
 export { handler as GET, handler as POST };
