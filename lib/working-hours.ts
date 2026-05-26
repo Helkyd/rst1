@@ -1,6 +1,18 @@
-export const WEEK_DAYS_ORDER: string[] = [
+
+
+export type WorkingHourInput = {
+  dayOfWeek: string
+  startTime: string
+  endTime: string
+  isOpen: boolean
+}
+
+// lib/working-hours.ts
+export type WeekDay = 'SUNDAY' | 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY'
+
+export const WEEK_DAYS_ORDER: WeekDay[] = [
   'MONDAY',
-  'TUESDAY',
+  'TUESDAY', 
   'WEDNESDAY',
   'THURSDAY',
   'FRIDAY',
@@ -8,7 +20,7 @@ export const WEEK_DAYS_ORDER: string[] = [
   'SUNDAY',
 ]
 
-export const WEEK_DAY_LABELS: Record<string, string> = {
+export const WEEK_DAY_LABELS: Record<WeekDay, string> = {
   MONDAY: 'Segunda-feira',
   TUESDAY: 'Terça-feira',
   WEDNESDAY: 'Quarta-feira',
@@ -16,13 +28,6 @@ export const WEEK_DAY_LABELS: Record<string, string> = {
   FRIDAY: 'Sexta-feira',
   SATURDAY: 'Sábado',
   SUNDAY: 'Domingo',
-}
-
-export type WorkingHourInput = {
-  dayOfWeek: string
-  startTime: string
-  endTime: string
-  isOpen: boolean
 }
 
 export const DEFAULT_WORKING_HOURS: WorkingHourInput[] = WEEK_DAYS_ORDER.map(
