@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { encode } from 'next-auth/jwt'
 import { validateUserCredentials } from '@/lib/validate-user'
 
+import jwt from 'jsonwebtoken'
+
 export const runtime = 'nodejs'
 
 export async function POST(request: Request) {
@@ -24,15 +26,18 @@ export async function POST(request: Request) {
       )
     }
 
-    const loginToken = await encode({
-      token: {
+
+    // In your POST function:
+    const loginToken = jwt.sign(
+      {
         sub: result.user.id,
         loginBridge: true,
       },
-      secret: process.env.NEXTAUTH_SECRET!,
-      maxAge: 60 * 2,
-    })
+      process.env.NEXTAUTH_SECRET!,
+      { expiresIn: '2m' }
+)
 
+    
     return NextResponse.json({
       loginToken,
       role: result.user.role,
