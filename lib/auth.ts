@@ -1,6 +1,7 @@
 // lib/auth.ts
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import type { Role } from '@/types/next-auth'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -105,7 +106,7 @@ export const authOptions: NextAuthOptions = {
       
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as string;
+        session.user.role = token.role as Role;
         session.user.accessToken = token.accessToken as string;
         session.user.name = token.name as string;
         session.user.email = token.email as string;
