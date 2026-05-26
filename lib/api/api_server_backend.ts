@@ -12,7 +12,6 @@ function getClientToken(): string | null {
 // Helper: Get server-side token from NextAuth session
 async function getServerToken(): Promise<string | null> {
   try {
-    // No authOptions needed - NextAuth auto-detects from pages/api
     const session = await getServerSession();
     
     if (process.env.NODE_ENV === 'development') {
@@ -22,7 +21,6 @@ async function getServerToken(): Promise<string | null> {
       }
     }
     
-    // Return the access token from the session
     return session?.user?.accessToken || null;
   } catch (error) {
     console.error('[Server Token Error]:', error);
@@ -30,36 +28,8 @@ async function getServerToken(): Promise<string | null> {
   }
 }
 
-// lib/api/api_server_backend.ts
-export async function fetcher(endpoint: string, options?: RequestInit) {
-  // Get token from session - but this won't work in server components!
-  // Instead, the token should be passed as a parameter
-  
-  console.log("[FETCH DEBUG] Endpoint:", endpoint);
-  console.log("[FETCH DEBUG] Options headers:", options?.headers);
-  
-  // Don't try to get token from session here - it should be passed in
-  // This is likely your problem!
-  
-  const url = `${process.env.BACKEND_API_URL || 'http://localhost:3000'}${endpoint}`;
-  
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    }
-  });
-  
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-  
-  return response.json();
-}
-
-// Main fetcher function (single source of truth)
-export async function fetcher_<T>(
+// Main fetcher function - the generic one (renamed from fetcher_ to fetcher)
+export async function fetcher<T = any>(
   endpoint: string, 
   options: RequestInit = {}, 
   requiresAuth: boolean = true
@@ -135,7 +105,7 @@ export async function fetcher_<T>(
     
     const data = await response.json();
     console.log(`[FETCH] Success: ${endpoint}`);
-    return data;
+    return data as T;
     
   } catch (error) {
     console.error(`[FETCH Error] ${endpoint}:`, error);
