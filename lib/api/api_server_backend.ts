@@ -1,46 +1,65 @@
 // lib/api/api_server_backend.ts
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 // Helper: Get client-side token
 function getClientToken(): string | null {
   if (typeof window === 'undefined') return null;
-  
-  return localStorage.getItem('access_token') || 
-         sessionStorage.getItem('access_token');
+  return localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
 }
 
 // Helper: Get server-side token from NextAuth session
 async function getServerToken(): Promise<string | null> {
   try {
-    const session = await getServerSession(authOptions);
-    // CRITICAL: Check your actual session structure
-    // Common patterns:
-    // Option A: session.accessToken
-    // Option B: session.user.accessToken  
-    // Option C: session.token
+    // No authOptions needed - NextAuth auto-detects from pages/api
+    const session = await getServerSession();
     
-    // Log the session structure for debugging
     if (process.env.NODE_ENV === 'development') {
-      console.log('[DEBUG] Session keys:', Object.keys(session || {}));
-      if (session?.user) console.log('[DEBUG] User keys:', Object.keys(session.user));
+      console.log('[DEBUG] Session exists:', !!session);
+      if (session?.user) {
+        console.log('[DEBUG] User has accessToken:', !!session.user.accessToken);
+      }
     }
     
-    // Try common patterns (adjust based on your actual auth config)
-    return (session as any)?.accessToken || 
-           (session as any)?.user?.accessToken || 
-           (session as any)?.token || 
-           null;
+    // Return the access token from the session
+    return session?.user?.accessToken || null;
   } catch (error) {
     console.error('[Server Token Error]:', error);
     return null;
   }
 }
 
+// lib/api/api_server_backend.ts
+export async function fetcher(endpoint: string, options?: RequestInit) {
+  // Get token from session - but this won't work in server components!
+  // Instead, the token should be passed as a parameter
+  
+  console.log("[FETCH DEBUG] Endpoint:", endpoint);
+  console.log("[FETCH DEBUG] Options headers:", options?.headers);
+  
+  // Don't try to get token from session here - it should be passed in
+  // This is likely your problem!
+  
+  const url = `${process.env.BACKEND_API_URL || 'http://localhost:3000'}${endpoint}`;
+  
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+  
+  return response.json();
+}
+
 // Main fetcher function (single source of truth)
-export async function fetcher<T>(
+export async function fetcher_<T>(
   endpoint: string, 
   options: RequestInit = {}, 
   requiresAuth: boolean = true
@@ -49,10 +68,16 @@ export async function fetcher<T>(
     const url = `${API_BASE_URL}${endpoint}`;
     console.log(`[FETCH] ${options.method || 'GET'} ${url} (auth: ${requiresAuth})`);
     
-    const headers: HeadersInit = {
+    // Create headers as Record<string, string>
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
     };
+    
+    // Add custom headers from options
+    if (options.headers) {
+      const customHeaders = options.headers as Record<string, string>;
+      Object.assign(headers, customHeaders);
+    }
     
     // Add auth token if required
     if (requiresAuth) {
@@ -73,9 +98,7 @@ export async function fetcher<T>(
           try {
             const { getSession } = await import('next-auth/react');
             const session = await getSession();
-            token = (session as any)?.accessToken || 
-                    (session as any)?.user?.accessToken || 
-                    null;
+            token = session?.user?.accessToken || null;
           } catch (e) {
             console.warn('[Client] Could not get NextAuth session:', e);
           }
@@ -93,7 +116,7 @@ export async function fetcher<T>(
     
     const response = await fetch(url, {
       ...options,
-      headers,
+      headers: headers as HeadersInit,
     });
     
     // Handle non-JSON responses
@@ -129,6 +152,7 @@ export const publicFetcher = <T>(endpoint: string, options?: RequestInit) =>
 
 // Your specific API functions
 export async function getDashboardMetrics(): Promise<any> {
+  console.log('Getting dashboard metrics...');
   return adminFetcher('/api/admin/dashboard');
 }
 
