@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import jwt from 'jsonwebtoken'
 
 const API_BASE_URL = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -153,6 +154,7 @@ async function getServerToken(): Promise<string | null> {
   }
 }
 
+
 // Convenience exports
 // @/lib/api/api_server_backend.ts
 
@@ -171,6 +173,11 @@ export async function adminFetcher<T>(
     console.error('[adminFetcher] No access token found - redirecting to login')
     throw new Error('Authentication required. Please log in.')
   }
+
+  // Decode the token to see what's inside
+  const decodedToken = jwt.decode(session.user.accessToken)
+  console.log('[adminFetcher] Decoded token:', decodedToken)
+  console.log('[adminFetcher] Token expiration:', decodedToken?.exp ? new Date(decodedToken.exp * 1000).toISOString() : 'unknown')
 
   const baseUrl = process.env.BACKEND_API_URL || 'http://localhost:3001'
 

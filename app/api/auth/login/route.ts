@@ -92,7 +92,7 @@ export async function POST(request: Request) {
         loginBridge: true, // Mark this as a login bridge token
       },
       secret,
-      { expiresIn: '2m' } // Short expiration for bridge token
+      { expiresIn: '7d' } // Short expiration for bridge token
     )
 
     return NextResponse.json({
