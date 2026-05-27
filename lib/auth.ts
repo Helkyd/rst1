@@ -51,45 +51,80 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-
+      
       async authorize(credentials) {
         try {
           if (!credentials?.email || !credentials?.password) {
+            console.log('[NextAuth] Missing credentials');
             return null;
           }
 
-          console.log('[NextAuth] Calling backend for:', credentials.email);
+          console.log('[NextAuth] Validating credentials for:', credentials.email);
           
-          const response = await fetch(`${process.env.BACKEND_API_URL}/api/auth/login`, {
+          // First, validate credentials locally
+          const result = await validateUserCredentials(
+            credentials.email,
+            credentials.password
+          );
+
+          if (!result.ok) {
+            console.log('[NextAuth] Validation failed:', result.reason);
+            return null;
+          }
+
+          console.log('[NextAuth] Validation successful for:', result.user.email);
+          
+          // IMPORTANT: Get a token from YOUR BACKEND API, don't generate your own
+          const backendUrl = process.env.BACKEND_API_URL || 'https://aodelivery-api.angolaerp.co.ao';
+          const loginResponse = await fetch(`${backendUrl}/api/auth/login`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
               email: credentials.email,
               password: credentials.password,
             }),
           });
 
-          const data = await response.json();
-
-          if (!response.ok || !data.loginToken) {
-            console.log('[NextAuth] Backend login failed');
+          if (!loginResponse.ok) {
+            const errorData = await loginResponse.json();
+            console.error('[NextAuth] Backend login failed:', errorData);
             return null;
           }
 
-          // You might need to fetch user details separately if not returned
-          return {
-            id: data.userId || data.user?.id,
-            name: data.user?.name || 'User',
-            email: credentials.email,
-            role: data.role || 'USER',
-            accessToken: data.loginToken,
+          const loginData = await loginResponse.json();
+          
+          if (!loginData.loginToken) {
+            console.error('[NextAuth] No token returned from backend');
+            return null;
+          }
+
+          console.log('[NextAuth] Successfully got token from backend API');
+          
+          // Return user with the BACKEND'S token, not a generated one
+          const userWithToken = {
+            id: result.user.id,
+            name: result.user.name,
+            email: result.user.email,
+            role: result.user.role,
+            restaurantId: result.user.restaurantId,
+            restaurantName: result.user.restaurantName ?? null,
+            accessToken: loginData.loginToken, // Use the token from your backend!
           };
+          
+          console.log('[NextAuth] Returning user with backend token:', {
+            id: userWithToken.id,
+            role: userWithToken.role,
+            hasToken: !!userWithToken.accessToken
+          });
+          
+          return userWithToken;
         } catch (error) {
-          console.error('[NextAuth] Error:', error);
+          console.error('[NextAuth] Authorize error:', error);
           return null;
         }
       },
-
     }),
   ],
   callbacks: {
