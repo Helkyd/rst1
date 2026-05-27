@@ -1,5 +1,4 @@
 import 'dotenv/config'
-import bcrypt from 'bcryptjs'
 import { publicFetcher } from '@/lib/api/api_server_backend'
 
 async function main() {
@@ -8,31 +7,43 @@ async function main() {
   const name = process.env.ADMIN_NAME ?? 'Administrador'
   const telephone = process.env.ADMIN_TELEPHONE ?? '+244900000001'
 
-  const hashed = await bcrypt.hash(password, 12)
-
-  // Use the public API to create the admin user
+  // Don't hash the password here - let the backend hash it
+  // The backend should hash the password before storing
   const userData = {
     email,
-    password: hashed,
+    password, // Send plain password, backend will hash it
     name,
     telephone,
     role: 'ADMIN',
   }
 
   try {
+    console.log('Creating admin user:', { email, name, role: 'ADMIN' })
+    
     const user = await publicFetcher('/api/auth/register', {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(userData),
     })
 
-    console.log('Administrador criado com sucesso.')
+    console.log('✓ Administrador criado com sucesso.')
     console.log('  Email:', user.email)
     console.log('  Nome:', user.name)
+    console.log('  Role:', user.role)
     console.log('')
     console.log('Este utilizador não se regista no site — apenas via este comando.')
     console.log('Opcional no .env: ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME, ADMIN_TELEPHONE')
-  } catch (error) {
-    console.error('Erro ao criar administrador:', error)
+    
+    process.exit(0)
+  } catch (error: any) {
+    console.error('✗ Erro ao criar administrador:', error.message || error)
+    
+    if (error.response?.status === 409) {
+      console.error('  Um utilizador com este email já existe.')
+    }
+    
     process.exit(1)
   }
 }
