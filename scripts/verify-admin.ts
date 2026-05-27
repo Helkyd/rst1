@@ -7,8 +7,8 @@ async function main() {
   const password = 'admin123'
 
   try {
-    // Find user by email
-    const users = await adminFetcher<any[]>(`/api/users?search=${encodeURIComponent(email)}`, {}, true)
+    // Find user by email - remove the 3rd parameter (true)
+    const users = await adminFetcher<any[]>(`/api/users?search=${encodeURIComponent(email)}`, {})
     const user = users.find(u => u.email === email) || null
 
     console.log('Found:', user ? { email: user.email, role: user.role } : null)
@@ -22,24 +22,25 @@ async function main() {
       }
 
       try {
+        // Remove the 3rd parameter (false) - login doesn't need auth
         const loginResult = await adminFetcher<any>('/api/auth/login', {
           method: 'POST',
           body: JSON.stringify(loginData),
-        }, false) // Don't require auth for login
+        })
 
         console.log('Login successful with admin123:', !!loginResult)
         if (loginResult) {
           console.log('User role:', loginResult.role)
           console.log('User ID:', loginResult.id)
         }
-      } catch (loginError) {
+      } catch (loginError: any) {
         console.log('Password admin123 valid: false')
         console.log('Login failed:', loginError.message)
       }
     }
 
-    // Get all users with admin in email
-    const allUsers = await adminFetcher<any[]>('/api/users', {}, true)
+    // Get all users with admin in email - remove the 3rd parameter (true)
+    const allUsers = await adminFetcher<any[]>('/api/users', {})
     const adminUsers = allUsers.filter(u => u.email?.includes('admin'))
     console.log('Users matching admin:', adminUsers.map(u => ({ email: u.email, role: u.role })))
   } catch (error) {
