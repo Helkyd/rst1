@@ -2,62 +2,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { validateUserCredentials } from '@/lib/validate-user'
-import jwt from 'jsonwebtoken'
 import type { Role } from '@/types/next-auth'
-
-// In lib/auth.ts - authorize function
-import { publicFetcher } from '@/lib/api/api_server_backend'
-
-// lib/auth.ts - Update the generateAccessToken function
-
-function generateAccessToken(user: any) {
-  const secret = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET
-  if (!secret) {
-    throw new Error('JWT_SECRET or NEXTAUTH_SECRET is not defined')
-  }
-  
-  console.log('[JWT] Generating token for user:', { id: user.id, role: user.role, email: user.email });
-  
-  // IMPORTANT: Match the exact format your backend expects
-  // Your backend uses jwt.verify and expects userId (not just id)
-  const token = jwt.sign(
-    { 
-      userId: user.id,      // Must be 'userId' (not just 'id')
-      role: user.role,      // Must include role
-      email: user.email,    // Include email
-      // Add any other fields your backend might expect
-    },
-    secret,
-    { expiresIn: '7d' }     // Must match backend expiration
-  );
-  
-  console.log('[JWT] Token generated successfully');
-  return token;
-}
-
-// Helper function to generate JWT token for your backend
-function generateAccessToken_(user: any) {
-  const secret = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET
-  if (!secret) {
-    throw new Error('JWT_SECRET or NEXTAUTH_SECRET is not defined')
-  }
-  
-  console.log('[JWT] Generating token for user:', { id: user.id, role: user.role, email: user.email });
-  
-  // Create token matching your backend's expected format
-  const token = jwt.sign(
-    { 
-      userId: user.id, 
-      role: user.role, 
-      email: user.email 
-    },
-    secret,
-    { expiresIn: '7d' }
-  );
-  
-  console.log('[JWT] Token generated:', token.substring(0, 50) + '...');
-  return token;
-}
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -83,17 +28,15 @@ export const authOptions: NextAuthOptions = {
         sameSite: 'lax',
         path: '/',
         secure: process.env.NODE_ENV === 'production',
-        //domain: process.env.COOKIE_DOMAIN || undefined,
       }
     },
     csrfToken: {
-      name: `next-auth.csrf-tokem`,
+      name: `next-auth.csrf-token`,
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: true,
-        //domain: process.env.COOKIE_DOMAIN || undefined,
+        secure: process.env.NODE_ENV === 'production',
       }
     },
   },
@@ -118,6 +61,7 @@ export const authOptions: NextAuthOptions = {
 
           console.log('[NextAuth] Validating credentials for:', credentials.email);
           
+          // First, validate credentials locally
           const result = await validateUserCredentials(
             credentials.email,
             credentials.password
@@ -129,11 +73,36 @@ export const authOptions: NextAuthOptions = {
           }
 
           console.log('[NextAuth] Validation successful for:', result.user.email);
-          console.log('[NextAuth] User object from validation:', JSON.stringify(result.user, null, 2));
           
-          // Generate access token for backend API
-          const accessToken = generateAccessToken(result.user);
+          // IMPORTANT: Get a token from YOUR BACKEND API, don't generate your own
+          const backendUrl = process.env.BACKEND_API_URL || 'https://aodelivery-api.angolaerp.co.ao';
+          const loginResponse = await fetch(`${backendUrl}/api/auth/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          });
+
+          if (!loginResponse.ok) {
+            const errorData = await loginResponse.json();
+            console.error('[NextAuth] Backend login failed:', errorData);
+            return null;
+          }
+
+          const loginData = await loginResponse.json();
           
+          if (!loginData.loginToken) {
+            console.error('[NextAuth] No token returned from backend');
+            return null;
+          }
+
+          console.log('[NextAuth] Successfully got token from backend API');
+          
+          // Return user with the BACKEND'S token, not a generated one
           const userWithToken = {
             id: result.user.id,
             name: result.user.name,
@@ -141,10 +110,10 @@ export const authOptions: NextAuthOptions = {
             role: result.user.role,
             restaurantId: result.user.restaurantId,
             restaurantName: result.user.restaurantName ?? null,
-            accessToken: accessToken,
+            accessToken: loginData.loginToken, // Use the token from your backend!
           };
           
-          console.log('[NextAuth] Returning user with token:', {
+          console.log('[NextAuth] Returning user with backend token:', {
             id: userWithToken.id,
             role: userWithToken.role,
             hasToken: !!userWithToken.accessToken
@@ -172,7 +141,7 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
         token.restaurantId = user.restaurantId;
         token.restaurantName = user.restaurantName;
-        token.accessToken = user.accessToken;
+        token.accessToken = user.accessToken; // This is now the backend's token
         console.log('[JWT Callback] Added to JWT:', { 
           id: token.id, 
           role: token.role,
@@ -198,7 +167,7 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role as Role;
         session.user.restaurantId = token.restaurantId as string;
         session.user.restaurantName = token.restaurantName as string;
-        session.user.accessToken = token.accessToken as string;
+        session.user.accessToken = token.accessToken as string; // This is the backend's token
         
         console.log('[Session Callback] After update:', {
           id: session.user.id,
