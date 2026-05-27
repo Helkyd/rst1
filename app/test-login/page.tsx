@@ -30,19 +30,23 @@ export default function TestLoginPage() {
       if (res?.ok) {
         // Wait a bit for session to be set
         setTimeout(async () => {
-          const sessionRes = await fetch('/api/auth/session')
-          const session = await sessionRes.json()
-          console.log('Session after login:', session)
-          setResult(prev => ({ ...prev, session }))
-          
-          // Also check debug session
-          const debugRes = await fetch('/api/debug-session')
-          const debug = await debugRes.json()
-          console.log('Debug session:', debug)
-          setResult(prev => ({ ...prev, debug }))
+          try {
+            const sessionRes = await fetch('/api/auth/session')
+            const session = await sessionRes.json()
+            console.log('Session after login:', session)
+            setResult(prev => ({ ...prev, session }))
+            
+            // Also check debug session
+            const debugRes = await fetch('/api/debug-session')
+            const debug = await debugRes.json()
+            console.log('Debug session:', debug)
+            setResult(prev => ({ ...prev, debug }))
+          } catch (error) {
+            console.error('Error fetching session:', error)
+          }
         }, 1000)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error)
       setResult({ error: error.message })
     } finally {
@@ -51,15 +55,20 @@ export default function TestLoginPage() {
   }
 
   const checkSession = async () => {
-    const sessionRes = await fetch('/api/auth/session')
-    const session = await sessionRes.json()
-    console.log('Current session:', session)
-    setResult({ currentSession: session })
-    
-    const debugRes = await fetch('/api/debug-session')
-    const debug = await debugRes.json()
-    console.log('Debug session:', debug)
-    setResult(prev => ({ ...prev, debug }))
+    try {
+      const sessionRes = await fetch('/api/auth/session')
+      const session = await sessionRes.json()
+      console.log('Current session:', session)
+      
+      const debugRes = await fetch('/api/debug-session')
+      const debug = await debugRes.json()
+      console.log('Debug session:', debug)
+      
+      setResult({ currentSession: session, debug })
+    } catch (error: any) {
+      console.error('Error checking session:', error)
+      setResult({ error: error.message })
+    }
   }
 
   return (
