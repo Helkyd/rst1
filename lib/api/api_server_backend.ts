@@ -154,8 +154,53 @@ async function getServerToken(): Promise<string | null> {
 }
 
 // Convenience exports
-export const adminFetcher = <T>(endpoint: string, options?: RequestInit) => 
-  fetcher<T>(endpoint, options, true);
+
+// In @/lib/api/api_server_backend.ts
+export async function adminFetcher<T>(
+  endpoint: string,
+  options?: RequestInit
+): Promise<T> {
+  // Get session to retrieve JWT token
+  const session = await getServerSession(authOptions)
+  
+  // In your adminFetcher or where you make the request
+  console.log('[Debug] Session exists:', !!session)
+  console.log('[Debug] User exists:', !!session?.user)
+  console.log('[Debug] Access token exists:', !!session?.user?.accessToken)
+  console.log('[Debug] Access token preview:', session?.user?.accessToken?.substring(0, 50))
+
+  if (!session?.user?.accessToken) {
+    console.error('[adminFetcher] No access token found')
+    throw new Error('Authentication required. Please log in.')
+  }
+
+  const baseUrl = process.env.BACKEND_API_URL || 'http://localhost:3001'
+
+  const url = `${baseUrl}${endpoint}`
+  
+  console.log('[adminFetcher] Making request to:', url)
+  console.log('[adminFetcher] Token exists:', !!session.user.accessToken)  
+
+  
+  const response = await fetch(`${baseUrl}${endpoint}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.user.accessToken}`,
+      ...options?.headers,
+    },
+  })
+
+  
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error('[adminFetcher] Error response:', response.status, error)
+    throw new Error(`API error: ${response.status}`)
+  }
+
+  return response.json()
+}
 
 export const publicFetcher = <T>(endpoint: string, options?: RequestInit) => 
   fetcher<T>(endpoint, options, false);
