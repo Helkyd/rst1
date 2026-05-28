@@ -3,8 +3,12 @@ import { authOptions } from '@/lib/auth';
 //import jwt from 'jsonwebtoken'
 import jwt, { JwtPayload } from 'jsonwebtoken'
 
+import { NextResponse } from 'next/server'
+
 const API_BASE_URL = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
+
+// app/api/test-backend/route.ts
 
 // lib/api/api_server_backend.ts
 
@@ -171,6 +175,7 @@ function getTokenExpiration(token: string): Date | null {
 
 // Convenience exports
 // @/lib/api/api_server_backend.ts
+
 
 export async function adminFetcher<T>(
   endpoint: string,
